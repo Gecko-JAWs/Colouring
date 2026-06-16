@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Magic Colouring</title>
+<meta name="apple-mobile-web-app-title" content="Colouring">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="apple-touch-icon.png">
+<style>
+  :root{
+    --bar:#fff7fb;
+    --shadow:0 4px 10px rgba(0,0,0,.18);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;}
+  html,body{margin:0; padding:0; height:100%; overflow:hidden; overscroll-behavior:none;
+    background:linear-gradient(160deg,#ffe3f3,#e3f0ff 60%,#e8ffe8);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; touch-action:none;}
+  #app{display:flex; flex-direction:column; height:100dvh; width:100vw; padding-top:env(safe-area-inset-top);}
+
+  /* ---- top action bar ---- */
+  #topbar{display:flex; align-items:center; gap:10px; padding:7px 10px;}
+  .act{height:60px; border:none; border-radius:18px; background:var(--bar);
+    box-shadow:var(--shadow); font-size:32px; display:flex; align-items:center; justify-content:center;
+    transition:transform .08s; cursor:pointer;}
+  .act:active{transform:scale(.9);}
+  .act.undo{flex:1; font-size:36px; background:linear-gradient(145deg,#a6c8ff,#7aa6ff);}
+  .act.menu{flex:0 0 76px; background:linear-gradient(145deg,#ffe3a1,#ffc15c);}
+
+  /* ---- menu / start sheets ---- */
+  .sheet{position:fixed; inset:0; background:rgba(0,0,0,.55); backdrop-filter:blur(3px);
+    display:none; align-items:center; justify-content:center; z-index:55; padding:22px;}
+  .sheet.open{display:flex;}
+  .menucard{width:100%; max-width:420px; background:#fff7fb; border-radius:26px; padding:18px;
+    box-shadow:0 12px 40px rgba(0,0,0,.4);}
+  .menugrid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .mbtn{border:none; border-radius:20px; padding:20px 8px 14px; font-size:42px; color:#333;
+    box-shadow:var(--shadow); display:flex; flex-direction:column; align-items:center; gap:8px;
+    transition:transform .08s; cursor:pointer; background:#fff;}
+  .mbtn:active{transform:scale(.93);}
+  .mbtn .lbl{font-size:17px; font-weight:700;}
+  .mbtn.photo{background:linear-gradient(145deg,#ffe1b0,#ffb066);}
+  .mbtn.upload{background:linear-gradient(145deg,#ffe1b0,#ffb066);}
+  .mbtn.paste{background:linear-gradient(145deg,#dcd0ff,#b69cff);}
+  .mbtn.blank{background:linear-gradient(145deg,#e7f0ff,#bcd6ff);}
+  .mbtn.puppy{background:linear-gradient(145deg,#fff3c4,#ffe27a);}
+  .mbtn.erase{background:linear-gradient(145deg,#ffd0d6,#ff9aa9);}
+  .mbtn.save{background:linear-gradient(145deg,#cdebc8,#8fe388);}
+  .mbtn.wide{grid-column:1 / -1; flex-direction:row; justify-content:center; font-size:30px;}
+  .sheetClose{margin-top:14px; width:100%; padding:14px; border:none; border-radius:18px;
+    background:#444; color:#fff; font-size:19px; font-weight:700;}
+
+  /* ---- canvas ---- */
+  #stage{flex:1; position:relative; margin:4px 8px; border-radius:22px; overflow:hidden;
+    background:#fff; box-shadow:inset 0 0 0 4px #fff, 0 6px 16px rgba(0,0,0,.15); min-height:0;}
+  #colorCanvas,#lineCanvas{position:absolute; left:0; top:0; width:100%; height:100%; border-radius:22px;}
+  #lineCanvas{pointer-events:none;}
+
+  /* ---- tools ---- */
+  #tools{display:flex; justify-content:center; gap:10px; padding:6px 8px;}
+  .tool{width:66px; height:60px; border:none; border-radius:18px; background:var(--bar);
+    box-shadow:var(--shadow); font-size:30px; display:flex; align-items:center; justify-content:center;
+    transition:transform .08s; position:relative; cursor:pointer;}
+  .tool.sel{transform:translateY(-6px) scale(1.06); box-shadow:0 8px 16px rgba(0,0,0,.25), 0 0 0 4px #ffd84d;}
+  .tool:active{transform:scale(.92);}
+
+  /* ---- palette ---- */
+  #palette{padding:6px 8px calc(8px + env(safe-area-inset-bottom)); }
+  #swatches{display:flex; flex-wrap:nowrap; overflow-x:auto; gap:10px; padding:4px 2px 10px;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none;}
+  #swatches::-webkit-scrollbar{display:none;}
+  .sw{flex:0 0 auto; width:54px; height:54px; border-radius:50%; border:4px solid #fff;
+    box-shadow:0 3px 7px rgba(0,0,0,.25); transition:transform .08s; cursor:pointer; position:relative;}
+  .sw:active{transform:scale(.9);}
+  .sw.sel{transform:scale(1.16); border-color:#ffd84d; box-shadow:0 0 0 3px #ffb300,0 4px 10px rgba(0,0,0,.3); z-index:2;}
+  .sw .spark{position:absolute; inset:0; border-radius:50%; pointer-events:none;}
+  .divider{flex:0 0 auto; width:4px; align-self:center; height:40px; border-radius:4px; background:#ffffffaa;}
+  .star{position:absolute; top:-6px; right:-4px; font-size:15px; filter:drop-shadow(0 1px 1px rgba(0,0,0,.3));}
+
+  #flash{position:fixed; inset:0; background:#fff; opacity:0; pointer-events:none; z-index:50;}
+  #saveSheet{position:fixed; inset:0; background:rgba(0,0,0,.78); display:none; flex-direction:column;
+    align-items:center; justify-content:center; gap:14px; z-index:60; padding:20px;}
+  #saveSheet img{max-width:92%; max-height:74%; border-radius:14px; box-shadow:0 8px 30px rgba(0,0,0,.6); background:#fff;}
+  #saveSheet .hint{color:#fff; font-size:17px; text-align:center; max-width:300px; line-height:1.4;}
+  #saveSheet button{margin-top:6px; padding:14px 30px; font-size:22px; border:none; border-radius:16px;
+    background:#46c98b; color:#fff; box-shadow:var(--shadow);}
+  .toast{position:fixed; top:14px; left:50%; transform:translateX(-50%); background:#333; color:#fff;
+    padding:10px 18px; border-radius:14px; font-size:16px; z-index:70; opacity:0; transition:opacity .2s; pointer-events:none;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <button class="act undo" id="btnUndo" aria-label="Undo">↩️</button>
+    <button class="act menu" id="btnMenu" aria-label="Menu">☰</button>
+  </div>
+
+  <div id="stage">
+    <canvas id="colorCanvas"></canvas>
+    <canvas id="lineCanvas"></canvas>
+  </div>
+
+  <div id="tools">
+    <button class="tool sel" data-tool="fill" id="toolFill" aria-label="Bucket fill">🪣</button>
+    <button class="tool" data-tool="pencil" aria-label="Pencil">✏️</button>
+    <button class="tool" data-tool="crayon" aria-label="Crayon">🖍️</button>
+    <button class="tool" data-tool="marker" aria-label="Marker">🖊️</button>
+  </div>
+
+  <div id="palette"><div id="swatches"></div></div>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" style="display:none">
+<div id="flash"></div>
+<div id="saveSheet">
+  <img id="saveImg" alt="">
+  <div class="hint">Press &amp; hold the picture, then tap <b>Save Image</b> 💚</div>
+  <button id="saveClose">Done</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- menu (destructive / file actions tucked away here) -->
+<div class="sheet" id="menuSheet">
+  <div class="menucard">
+    <div class="menugrid">
+      <button class="mbtn upload" id="mUpload">📁<span class="lbl">Upload photo</span></button>
+      <button class="mbtn paste" id="mPaste">📋<span class="lbl">Paste photo</span></button>
+      <button class="mbtn blank" id="mBlank">📄<span class="lbl">Blank page</span></button>
+      <button class="mbtn puppy" id="mPuppy">🐶<span class="lbl">Puppy</span></button>
+      <button class="mbtn erase wide" id="mErase">🧽<span class="lbl">Start over</span></button>
+      <button class="mbtn save wide" id="mSave">💾<span class="lbl">Save picture</span></button>
+    </div>
+    <button class="sheetClose" id="menuClose">Close</button>
+  </div>
+</div>
+
+<!-- first screen: pick what to start with -->
+<div class="sheet" id="startSheet">
+  <div class="menucard">
+    <div class="menugrid">
+      <button class="mbtn blank" id="sBlank">📄<span class="lbl">Blank page</span></button>
+      <button class="mbtn puppy" id="sPuppy">🐶<span class="lbl">Puppy</span></button>
+      <button class="mbtn upload" id="sUpload">📁<span class="lbl">Upload photo</span></button>
+      <button class="mbtn paste" id="sPaste">📋<span class="lbl">Paste photo</span></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============ canvas setup ============ */
+const colorCanvas = document.getElementById('colorCanvas');
+const lineCanvas  = document.getElementById('lineCanvas');
+const cctx = colorCanvas.getContext('2d', {willReadFrequently:true});
+const lctx = lineCanvas.getContext('2d');
+const stage = document.getElementById('stage');
+
+let W=0, H=0, SCALE=1;
+let lineMask = null;          // Uint8Array, 1 = outline (barrier)
+const undoStack = [];
+const MAX_UNDO = 24;
+
+function sizeCanvases(){
+  const r = stage.getBoundingClientRect();
+  SCALE = Math.min(window.devicePixelRatio||1, 2);
+  W = Math.max(1, Math.round(r.width  * SCALE));
+  H = Math.max(1, Math.round(r.height * SCALE));
+  [colorCanvas, lineCanvas].forEach(c=>{ c.width=W; c.height=H; });
+}
+
+/* ============ state ============ */
+let currentTool = 'fill';
+const state = { swatch:null, rainbowHue:0 };
+
+/* ============ palette ============ */
+const PLAIN = [
+  '#e53935','#ff7043','#ffb300','#ffe14d','#9ccc65','#2e9e4f',
+  '#26c6da','#42a5f5','#3949ab','#7e57c2','#ec407a','#ff8fb3',
+  '#8d5524','#222222','#9e9e9e','#ffffff'
+];
+const SPECIAL = [
+  {id:'gold',   type:'metallic', light:'#fff6c0', mid:'#ffd24d', dark:'#b8860b', icon:'✨'},
+  {id:'silver', type:'metallic', light:'#ffffff', mid:'#d7dde3', dark:'#8a929b', icon:'✨'},
+  {id:'gpink',  type:'glitter', color:'#ff5ea8', icon:'💖'},
+  {id:'gpurple',type:'glitter', color:'#9c4dff', icon:'💜'},
+  {id:'gblue',  type:'glitter', color:'#33c4ff', icon:'💙'},
+  {id:'ngreen', type:'neon', color:'#39ff14', icon:'⚡'},
+  {id:'npink',  type:'neon', color:'#ff2d95', icon:'⚡'},
+  {id:'nyellow',type:'neon', color:'#faff00', icon:'⚡'},
+  {id:'rainbow',type:'rainbow', icon:'🌈'}
+];
+
+function buildPalette(){
+  const wrap = document.getElementById('swatches');
+  PLAIN.forEach((c,i)=>{
+    const b = document.createElement('button');
+    b.className='sw'; b.style.background=c;
+    if(c==='#ffffff') b.style.background='#ffffff', b.style.borderColor='#ddd';
+    b.dataset.idx='p'+i;
+    b.addEventListener('pointerdown', ()=>selectSwatch({type:'solid', color:c}, b));
+    wrap.appendChild(b);
+    if(i===0) { /* placeholder */ }
+  });
+  const div = document.createElement('div'); div.className='divider'; wrap.appendChild(div);
+  SPECIAL.forEach(s=>{
+    const b = document.createElement('button');
+    b.className='sw'; b.dataset.idx=s.id;
+    styleSpecial(b, s);
+    const star=document.createElement('div'); star.className='star'; star.textContent=s.icon; b.appendChild(star);
+    b.addEventListener('pointerdown', ()=>selectSwatch(s, b));
+    wrap.appendChild(b);
+  });
+  // default colour
+  const first = wrap.querySelector('.sw');
+  selectSwatch({type:'solid', color:PLAIN[0]}, first);
+}
+
+function styleSpecial(b, s){
+  if(s.type==='metallic'){
+    b.style.background=`linear-gradient(135deg, ${s.light} 0%, ${s.mid} 45%, ${s.dark} 100%)`;
+  } else if(s.type==='glitter'){
+    b.style.background=`radial-gradient(circle at 30% 30%, #fff 0 10%, ${s.color} 35%, ${s.color} 100%)`;
+    b.style.boxShadow='0 0 8px '+s.color+', 0 3px 7px rgba(0,0,0,.25)';
+  } else if(s.type==='neon'){
+    b.style.background=s.color;
+    b.style.boxShadow='0 0 14px '+s.color+', 0 0 6px '+s.color;
+    b.style.borderColor='#fff';
+  } else if(s.type==='rainbow'){
+    b.style.background='conic-gradient(#ff004d,#ff8a00,#ffe600,#3bff5a,#00d4ff,#7a5cff,#ff00d4,#ff004d)';
+  }
+}
+
+function selectSwatch(s, el){
+  state.swatch = s;
+  document.querySelectorAll('.sw').forEach(x=>x.classList.remove('sel'));
+  if(el) el.classList.add('sel');
+  // picking a colour while bucket is the active tool keeps bucket;
+  // picking a colour with no draw tool active keeps current tool.
+}
+
+/* ============ tool selection ============ */
+document.querySelectorAll('.tool').forEach(t=>{
+  t.addEventListener('pointerdown', ()=>{
+    currentTool = t.dataset.tool;
+    document.querySelectorAll('.tool').forEach(x=>x.classList.remove('sel'));
+    t.classList.add('sel');
+  });
+});
+
+/* ============ helpers: colour ============ */
+function hexToRgb(h){
+  h=h.replace('#',''); if(h.length===3) h=h.split('').map(c=>c+c).join('');
+  const n=parseInt(h,16); return [(n>>16)&255,(n>>8)&255,n&255];
+}
+function hslToRgb(h,s,l){
+  h/=360; let r,g,b;
+  if(s===0){r=g=b=l;}
+  else{const q=l<.5?l*(1+s):l+s-l*s; const p=2*l-q;
+    const f=(t)=>{ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; };
+    r=f(h+1/3); g=f(h); b=f(h-1/3);}
+  return [Math.round(r*255),Math.round(g*255),Math.round(b*255)];
+}
+function mix(a,b,t){return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t];}
+
+/* ============ undo ============ */
+function pushUndo(){
+  try{
+    undoStack.push(cctx.getImageData(0,0,W,H));
+    if(undoStack.length>MAX_UNDO) undoStack.shift();
+  }catch(e){}
+}
+function undo(){
+  if(!undoStack.length){ return; }
+  const img = undoStack.pop();
+  cctx.putImageData(img,0,0);
+}
+
+/* ============ flood fill ============ */
+function floodFill(sx, sy){
+  sx=Math.round(sx); sy=Math.round(sy);
+  if(sx<0||sy<0||sx>=W||sy>=H) return;
+  const img = cctx.getImageData(0,0,W,H);
+  const d = img.data;
+  const idx0 = (sy*W+sx);
+  if(lineMask && lineMask[idx0]) return;             // tapped on an outline -> ignore
+  const p0 = idx0*4;
+  const tr=d[p0], tg=d[p0+1], tb=d[p0+2];
+  const tol=42;
+  const visited = new Uint8Array(W*H);
+  const region = [];
+  const stack=[idx0];
+  visited[idx0]=1;
+  while(stack.length){
+    const i = stack.pop();
+    region.push(i);
+    const x=i%W, y=(i/W)|0;
+    const neighbours=[];
+    if(x>0)   neighbours.push(i-1);
+    if(x<W-1) neighbours.push(i+1);
+    if(y>0)   neighbours.push(i-W);
+    if(y<H-1) neighbours.push(i+W);
+    for(const ni of neighbours){
+      if(visited[ni]) continue;
+      if(lineMask && lineMask[ni]){ visited[ni]=1; continue; }
+      const pp=ni*4;
+      if(Math.abs(d[pp]-tr)<=tol && Math.abs(d[pp+1]-tg)<=tol && Math.abs(d[pp+2]-tb)<=tol){
+        visited[ni]=1; stack.push(ni);
+      }
+    }
+  }
+  applyFillEffect(d, region);
+  cctx.putImageData(img,0,0);
+}
+
+function applyFillEffect(d, region){
+  const s = state.swatch;
+  // bbox
+  let minX=W,minY=H,maxX=0,maxY=0;
+  for(const i of region){ const x=i%W,y=(i/W)|0;
+    if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
+  const bw=Math.max(1,maxX-minX), bh=Math.max(1,maxY-minY);
+
+  if(s.type==='solid'){
+    const [r,g,b]=hexToRgb(s.color);
+    for(const i of region){ const p=i*4; d[p]=r; d[p+1]=g; d[p+2]=b; d[p+3]=255; }
+  }
+  else if(s.type==='metallic'){
+    const light=hexToRgb(s.light), mid=hexToRgb(s.mid), dark=hexToRgb(s.dark);
+    for(const i of region){ const p=i*4; const y=(i/W)|0;
+      const t=(y-minY)/bh;
+      const shine=0.5+0.5*Math.sin(t*Math.PI*3.2);          // shiny bands
+      const c = shine>0.5 ? mix(mid,light,(shine-0.5)*2) : mix(dark,mid,shine*2);
+      d[p]=c[0]; d[p+1]=c[1]; d[p+2]=c[2]; d[p+3]=255; }
+    // sparkle highlights
+    sprinkle(d, region, '#ffffff', 0.006);
+  }
+  else if(s.type==='glitter'){
+    const [r,g,b]=hexToRgb(s.color);
+    for(const i of region){ const p=i*4; d[p]=r; d[p+1]=g; d[p+2]=b; d[p+3]=255; }
+    sprinkle(d, region, '#ffffff', 0.03);
+    sprinkle(d, region, '#fff3a0', 0.012);
+  }
+  else if(s.type==='neon'){
+    const base=hexToRgb(s.color); const lightCore=mix(base,[255,255,255],0.45);
+    for(const i of region){ const p=i*4; const x=i%W,y=(i/W)|0;
+      const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+      const dx=(x-cx)/(bw/2), dy=(y-cy)/(bh/2);
+      const dist=Math.min(1,Math.sqrt(dx*dx+dy*dy));
+      const c=mix(lightCore,base,dist);                     // glowy lighter centre
+      d[p]=c[0]; d[p+1]=c[1]; d[p+2]=c[2]; d[p+3]=255; }
+  }
+  else if(s.type==='rainbow'){
+    for(const i of region){ const p=i*4; const x=i%W,y=(i/W)|0;
+      const hue=(((x-minX)/bw)*300 + ((y-minY)/bh)*60)%360;
+      const c=hslToRgb(hue,0.95,0.6);
+      d[p]=c[0]; d[p+1]=c[1]; d[p+2]=c[2]; d[p+3]=255; }
+    sprinkle(d, region, '#ffffff', 0.008);
+  }
+}
+
+function sprinkle(d, region, hex, density){
+  const [r,g,b]=hexToRgb(hex);
+  const n=Math.floor(region.length*density);
+  for(let k=0;k<n;k++){
+    const i=region[(Math.random()*region.length)|0];
+    const p=i*4; d[p]=r; d[p+1]=g; d[p+2]=b; d[p+3]=255;
+    // tiny plus to make sparkle visible
+    const x=i%W,y=(i/W)|0;
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
+      const nx=x+dx, ny=y+dy;
+      if(nx>=0&&ny>=0&&nx<W&&ny<H){ const pp=(ny*W+nx)*4;
+        d[pp]=(d[pp]+r)/2; d[pp+1]=(d[pp+1]+g)/2; d[pp+2]=(d[pp+2]+b)/2; }
+    });
+  }
+}
+
+/* ============ freehand brushes ============ */
+let drawing=false, lastX=0, lastY=0;
+
+function brushWidth(){
+  const base = Math.max(W,H);
+  if(currentTool==='pencil') return Math.max(3, base*0.006);
+  if(currentTool==='crayon') return Math.max(10, base*0.022);
+  if(currentTool==='marker') return Math.max(16, base*0.034);
+  return 8;
+}
+
+function strokeSeg(x0,y0,x1,y1){
+  const s=state.swatch;
+  const w=brushWidth();
+  cctx.save();
+  cctx.lineCap='round'; cctx.lineJoin='round';
+  cctx.shadowBlur=0; cctx.globalAlpha=1;
+
+  // colour style by effect
+  if(s.type==='neon'){
+    cctx.shadowBlur=w*1.6; cctx.shadowColor=s.color;
+    cctx.strokeStyle=s.color; cctx.lineWidth=w;
+    line(x0,y0,x1,y1);
+    cctx.shadowBlur=0;
+    cctx.strokeStyle='#ffffff'; cctx.globalAlpha=0.8; cctx.lineWidth=Math.max(2,w*0.32);
+    line(x0,y0,x1,y1);
+    cctx.restore(); return;
+  }
+  if(s.type==='rainbow'){
+    const c=hslToRgb(state.rainbowHue,0.95,0.55);
+    state.rainbowHue=(state.rainbowHue+9)%360;
+    cctx.strokeStyle=`rgb(${c[0]},${c[1]},${c[2]})`;
+  } else if(s.type==='metallic'){
+    const g=cctx.createLinearGradient(x0-w,y0-w,x1+w,y1+w);
+    g.addColorStop(0,s.dark); g.addColorStop(.5,s.light); g.addColorStop(1,s.mid);
+    cctx.strokeStyle=g;
+  } else {
+    cctx.strokeStyle=s.color;
+  }
+
+  // brush feel
+  if(currentTool==='marker'){ cctx.globalAlpha=0.85; }
+  cctx.lineWidth=w;
+  line(x0,y0,x1,y1);
+
+  if(currentTool==='crayon'){
+    // rough grainy edge: jittered short dabs
+    const dist=Math.hypot(x1-x0,y1-y0);
+    const steps=Math.max(1,Math.floor(dist/3));
+    cctx.globalAlpha=0.5;
+    for(let k=0;k<steps;k++){
+      const t=k/steps;
+      const jx=(Math.random()-0.5)*w*0.9, jy=(Math.random()-0.5)*w*0.9;
+      const px=x0+(x1-x0)*t+jx, py=y0+(y1-y0)*t+jy;
+      cctx.fillStyle=cctx.strokeStyle;
+      cctx.beginPath(); cctx.arc(px,py,w*0.18*Math.random()+1,0,7); cctx.fill();
+    }
+  }
+
+  if(s.type==='metallic'){
+    cctx.globalAlpha=0.55; cctx.strokeStyle='#ffffff'; cctx.lineWidth=Math.max(1.5,w*0.18);
+    line(x0+ -w*0.18, y0 - w*0.18, x1 - w*0.18, y1 - w*0.18);
+  }
+  if(s.type==='glitter'){
+    cctx.globalAlpha=1;
+    const dist=Math.hypot(x1-x0,y1-y0);
+    const steps=Math.max(1,Math.floor(dist/4));
+    for(let k=0;k<steps;k++){
+      if(Math.random()<0.5) continue;
+      const t=k/steps;
+      const px=x0+(x1-x0)*t+(Math.random()-0.5)*w;
+      const py=y0+(y1-y0)*t+(Math.random()-0.5)*w;
+      cctx.fillStyle = Math.random()<0.5?'#ffffff':'#fff3a0';
+      cctx.beginPath(); cctx.arc(px,py,Math.random()*1.6+0.8,0,7); cctx.fill();
+    }
+  }
+  cctx.restore();
+}
+function line(x0,y0,x1,y1){ cctx.beginPath(); cctx.moveTo(x0,y0); cctx.lineTo(x1,y1); cctx.stroke(); }
+
+/* ============ pointer handling ============ */
+function getPos(e){
+  const r=colorCanvas.getBoundingClientRect();
+  return { x:(e.clientX-r.left)*(W/r.width), y:(e.clientY-r.top)*(H/r.height) };
+}
+colorCanvas.addEventListener('pointerdown', e=>{
+  e.preventDefault();
+  const {x,y}=getPos(e);
+  if(currentTool==='fill'){
+    pushUndo(); floodFill(x,y); return;
+  }
+  pushUndo();
+  drawing=true; lastX=x; lastY=y;
+  try{ colorCanvas.setPointerCapture(e.pointerId); }catch(_){}
+  strokeSeg(x,y,x+0.01,y+0.01);
+});
+colorCanvas.addEventListener('pointermove', e=>{
+  if(!drawing) return;
+  e.preventDefault();
+  // coalesced events for smoother lines
+  const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+  for(const ev of evs){
+    const {x,y}=getPos(ev);
+    strokeSeg(lastX,lastY,x,y);
+    lastX=x; lastY=y;
+  }
+});
+function endDraw(e){ drawing=false; }
+colorCanvas.addEventListener('pointerup', endDraw);
+colorCanvas.addEventListener('pointercancel', endDraw);
+colorCanvas.addEventListener('pointerleave', endDraw);
+
+/* ============ outlines: white base + build mask ============ */
+function resetColorLayer(){
+  cctx.save(); cctx.globalCompositeOperation='source-over';
+  cctx.fillStyle='#ffffff'; cctx.fillRect(0,0,W,H); cctx.restore();
+}
+function buildMaskFromLine(){
+  const img=lctx.getImageData(0,0,W,H).data;
+  lineMask=new Uint8Array(W*H);
+  for(let i=0;i<W*H;i++){ if(img[i*4+3]>60) lineMask[i]=1; }
+}
+
+/* ============ sample drawing (cute puppy) ============ */
+function drawSample(){
+  resetColorLayer();
+  lctx.clearRect(0,0,W,H);
+  lctx.save();
+  lctx.strokeStyle='#1a1a1a'; lctx.lineJoin='round'; lctx.lineCap='round';
+  const LW=Math.max(7, Math.min(W,H)*0.013);
+  lctx.lineWidth=LW;
+  // scale a 0..1000 design space to canvas (square-ish, centred)
+  const S=Math.min(W,H)/1000; const ox=(W-1000*S)/2, oy=(H-1000*S)/2;
+  const P=(x,y)=>[ox+x*S, oy+y*S];
+  function path(pts, close){ lctx.beginPath();
+    pts.forEach((pt,i)=>{ const[a,b]=P(pt[0],pt[1]); i?lctx.lineTo(a,b):lctx.moveTo(a,b); });
+    if(close) lctx.closePath(); lctx.stroke(); }
+  function ellipse(cx,cy,rx,ry){ const[a,b]=P(cx,cy); lctx.beginPath();
+    lctx.ellipse(a,b,rx*S,ry*S,0,0,7); lctx.stroke(); }
+
+  // head
+  ellipse(500,520,300,290);
+  // left ear
+  path([[250,330],[150,180],[300,250],[330,420]], true);
+  // right ear
+  path([[750,330],[850,180],[700,250],[670,420]], true);
+  // left eye
+  ellipse(400,470,55,70);
+  // right eye
+  ellipse(600,470,55,70);
+  // nose
+  ellipse(500,600,70,55);
+  // mouth
+  lctx.beginPath();
+  let p=P(500,655); lctx.moveTo(p[0],p[1]);
+  p=P(500,720); lctx.lineTo(p[0],p[1]);
+  let c1=P(420,760), e1=P(360,720); lctx.moveTo(P(500,720)[0],P(500,720)[1]);
+  lctx.quadraticCurveTo(c1[0],c1[1],e1[0],e1[1]);
+  let c2=P(580,760), e2=P(640,720); lctx.moveTo(P(500,720)[0],P(500,720)[1]);
+  lctx.quadraticCurveTo(c2[0],c2[1],e2[0],e2[1]);
+  lctx.stroke();
+  // cheek spot
+  ellipse(720,600,60,50);
+  // little bone at bottom
+  path([[430,900],[470,900]],false);
+  lctx.beginPath();
+  ['l','r'].forEach(()=>{});
+  // simple bone
+  function circle(cx,cy,r){ const[a,b]=P(cx,cy); lctx.beginPath(); lctx.arc(a,b,r*S,0,7); lctx.stroke(); }
+  circle(400,905,28); circle(400,955,28); circle(600,905,28); circle(600,955,28);
+  path([[420,905],[580,905]],false);
+  path([[420,955],[580,955]],false);
+
+  lctx.restore();
+  buildMaskFromLine();
+  undoStack.length=0;
+}
+
+/* ============ image -> line art ============ */
+function processImage(img){
+  // draw image "contain" into a temp full-res buffer on white
+  const tmp=document.createElement('canvas'); tmp.width=W; tmp.height=H;
+  const tx=tmp.getContext('2d');
+  tx.fillStyle='#fff'; tx.fillRect(0,0,W,H);
+  const ratio=Math.min(W/img.width, H/img.height);
+  const dw=img.width*ratio, dh=img.height*ratio;
+  tx.drawImage(img,(W-dw)/2,(H-dh)/2,dw,dh);
+
+  // trace closer to full resolution -> thinner lines, more visible detail
+  const ds=0.8;
+  const pw=Math.max(8,Math.round(W*ds)), ph=Math.max(8,Math.round(H*ds));
+  const sc=document.createElement('canvas'); sc.width=pw; sc.height=ph;
+  const sx=sc.getContext('2d'); sx.drawImage(tmp,0,0,pw,ph);
+  const src=sx.getImageData(0,0,pw,ph).data;
+
+  // grayscale
+  const gray=new Float32Array(pw*ph);
+  for(let i=0;i<pw*ph;i++){ const p=i*4; gray[i]=0.299*src[p]+0.587*src[p+1]+0.114*src[p+2]; }
+  // blur (box 3x3, 2 passes) to drop detail
+  let g=gray;
+  for(let pass=0; pass<2; pass++) g=boxBlur(g,pw,ph);
+  // sobel
+  const mag=new Float32Array(pw*ph); let maxM=0;
+  for(let y=1;y<ph-1;y++){ for(let x=1;x<pw-1;x++){
+    const i=y*pw+x;
+    const gx = -g[i-pw-1]-2*g[i-1]-g[i+pw-1] + g[i-pw+1]+2*g[i+1]+g[i+pw+1];
+    const gy = -g[i-pw-1]-2*g[i-pw]-g[i-pw+1] + g[i+pw-1]+2*g[i+pw]+g[i+pw+1];
+    const m=Math.sqrt(gx*gx+gy*gy); mag[i]=m; if(m>maxM)maxM=m;
+  }}
+  // --- double-threshold (hysteresis): strong edges anchor, weak edges only
+  //     survive if they connect to a strong edge. Kills faint speckle, keeps
+  //     real contours continuous ("all or nothing"). ---
+  const hi=maxM*0.20, lo=maxM*0.08;
+  const strong=new Uint8Array(pw*ph), weak=new Uint8Array(pw*ph);
+  for(let i=0;i<pw*ph;i++){ if(mag[i]>=hi) strong[i]=1; else if(mag[i]>=lo) weak[i]=1; }
+  const edge=new Uint8Array(pw*ph);
+  const stk=[];
+  for(let i=0;i<pw*ph;i++) if(strong[i]){ edge[i]=1; stk.push(i); }
+  while(stk.length){ const i=stk.pop(); const x=i%pw,y=(i/pw)|0;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      const nx=x+dx,ny=y+dy; if(nx<0||ny<0||nx>=pw||ny>=ph)continue;
+      const ni=ny*pw+nx; if(!edge[ni]&&weak[ni]){ edge[ni]=1; stk.push(ni); }
+    }}
+  // drop tiny noise fragments FIRST (before they get inflated by closing) ->
+  // a line is full, or not there at all.
+  const minArea=Math.max(18, Math.round((pw+ph)*0.22));
+  const kept=removeSmall(edge,pw,ph,minArea);
+  // morphological closing (dilate x2, erode x2): bridges gaps so dashed
+  // fragments become one solid line, but is thickness-neutral (no net bolding)
+  // so lines stay fine and the picture's detail reads clearly.
+  let cl=dilate(kept,pw,ph); cl=dilate(cl,pw,ph); cl=erode(cl,pw,ph); const dil=erode(cl,pw,ph);
+
+  // render edges to line canvas, scaling up (nearest -> chunky)
+  lctx.clearRect(0,0,W,H);
+  const out=lctx.createImageData(W,H);
+  const od=out.data;
+  for(let y=0;y<H;y++){
+    const py=Math.min(ph-1,(y*ds)|0);
+    for(let x=0;x<W;x++){
+      const px=Math.min(pw-1,(x*ds)|0);
+      if(dil[py*pw+px]){ const o=(y*W+x)*4; od[o]=20; od[o+1]=20; od[o+2]=20; od[o+3]=255; }
+    }
+  }
+  lctx.putImageData(out,0,0);
+  buildMaskFromLine();
+  resetColorLayer();
+  undoStack.length=0;
+  toast('All ready to colour! 🎨');
+}
+
+function dilate(s,w,h){
+  const o=new Uint8Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){ const i=y*w+x;
+    if(s[i]){o[i]=1; continue;}
+    let on=0;
+    for(let dy=-1;dy<=1&&!on;dy++)for(let dx=-1;dx<=1;dx++){
+      const nx=x+dx,ny=y+dy; if(nx<0||ny<0||nx>=w||ny>=h)continue;
+      if(s[ny*w+nx]){on=1;break;} }
+    o[i]=on; }
+  return o;
+}
+function erode(s,w,h){
+  const o=new Uint8Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){ const i=y*w+x;
+    if(!s[i]){o[i]=0; continue;}
+    let all=1;
+    for(let dy=-1;dy<=1&&all;dy++)for(let dx=-1;dx<=1;dx++){
+      const nx=x+dx,ny=y+dy;
+      if(nx<0||ny<0||nx>=w||ny>=h){all=0;break;}
+      if(!s[ny*w+nx]){all=0;break;} }
+    o[i]=all; }
+  return o;
+}
+function removeSmall(s,w,h,minA){
+  const lab=new Int32Array(w*h), o=new Uint8Array(w*h); let comp=0;
+  for(let i=0;i<w*h;i++){ if(!s[i]||lab[i])continue; comp++;
+    const q=[i]; lab[i]=comp; const cells=[i];
+    while(q.length){ const j=q.pop(); const x=j%w,y=(j/w)|0;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        const nx=x+dx,ny=y+dy; if(nx<0||ny<0||nx>=w||ny>=h)continue;
+        const nj=ny*w+nx; if(s[nj]&&!lab[nj]){lab[nj]=comp; q.push(nj); cells.push(nj);} } }
+    if(cells.length>=minA){ for(const c of cells) o[c]=1; }
+  }
+  return o;
+}
+function boxBlur(s,w,h){
+  const o=new Float32Array(w*h);
+  for(let y=0;y<h;y++){ for(let x=0;x<w;x++){
+    let sum=0,c=0;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      const nx=x+dx,ny=y+dy; if(nx<0||ny<0||nx>=w||ny>=h)continue;
+      sum+=s[ny*w+nx]; c++;
+    }
+    o[y*w+x]=sum/c;
+  }}
+  return o;
+}
+
+/* ============ blank page ============ */
+function newBlank(){
+  lctx.clearRect(0,0,W,H);
+  lineMask=new Uint8Array(W*H);   // no barriers -> pure free drawing
+  resetColorLayer();
+  undoStack.length=0;
+}
+
+/* ============ menus ============ */
+const menuSheet=document.getElementById('menuSheet');
+const startSheet=document.getElementById('startSheet');
+function openMenu(){ menuSheet.classList.add('open'); }
+function closeMenu(){ menuSheet.classList.remove('open'); }
+document.getElementById('btnMenu').addEventListener('click', openMenu);
+document.getElementById('menuClose').addEventListener('click', closeMenu);
+menuSheet.addEventListener('click', e=>{ if(e.target===menuSheet) closeMenu(); });
+
+document.getElementById('mUpload').addEventListener('click', ()=>{ closeMenu(); fileInput.click(); });
+document.getElementById('mPaste').addEventListener('click', ()=>{ closeMenu(); pasteFromClipboard(); });
+document.getElementById('mBlank').addEventListener('click', ()=>{ closeMenu(); newBlank(); });
+document.getElementById('mPuppy').addEventListener('click', ()=>{ closeMenu(); drawSample(); });
+document.getElementById('mErase').addEventListener('click', ()=>{ closeMenu(); pushUndo(); resetColorLayer(); flash(); });
+document.getElementById('mSave').addEventListener('click', ()=>{ closeMenu(); doSave(); });
+
+document.getElementById('sBlank').addEventListener('click', ()=>{ startSheet.classList.remove('open'); newBlank(); });
+document.getElementById('sPuppy').addEventListener('click', ()=>{ startSheet.classList.remove('open'); drawSample(); });
+document.getElementById('sUpload').addEventListener('click', ()=>{ startSheet.classList.remove('open'); fileInput.click(); });
+document.getElementById('sPaste').addEventListener('click', ()=>{ startSheet.classList.remove('open'); pasteFromClipboard(); });
+
+/* ============ upload + paste ============ */
+const fileInput=document.getElementById('fileInput');
+function loadImageSource(src){
+  if(!src){ toast('No picture found'); return; }
+  const url=URL.createObjectURL(src);
+  const img=new Image();
+  img.onload=()=>{ processImage(img); URL.revokeObjectURL(url); };
+  img.onerror=()=>{ toast('Could not open that picture'); URL.revokeObjectURL(url); };
+  img.src=url;
+}
+fileInput.addEventListener('change', e=>{
+  const f=e.target.files&&e.target.files[0]; fileInput.value='';
+  loadImageSource(f);
+});
+async function pasteFromClipboard(){
+  try{
+    if(navigator.clipboard && navigator.clipboard.read){
+      const items=await navigator.clipboard.read();
+      for(const it of items){
+        const type=it.types.find(t=>t.indexOf('image/')===0);
+        if(type){ const blob=await it.getType(type); loadImageSource(blob); return; }
+      }
+      toast('Copy a picture first, then tap Paste 📋');
+    } else {
+      toast('Copy a picture, then paste');
+    }
+  }catch(err){ toast('Copy a picture first, then tap Paste 📋'); }
+}
+// system / hardware-keyboard paste anywhere in the app
+window.addEventListener('paste', e=>{
+  const items=e.clipboardData && e.clipboardData.items; if(!items) return;
+  for(const it of items){
+    if(it.type && it.type.indexOf('image/')===0){
+      loadImageSource(it.getAsFile()); e.preventDefault(); return;
+    }
+  }
+});
+
+/* ============ buttons ============ */
+document.getElementById('btnUndo').addEventListener('click', undo);
+
+function doSave(){
+  const out=document.createElement('canvas'); out.width=W; out.height=H;
+  const ox=out.getContext('2d');
+  ox.fillStyle='#fff'; ox.fillRect(0,0,W,H);
+  ox.drawImage(colorCanvas,0,0);
+  ox.drawImage(lineCanvas,0,0);
+  const dataURL=out.toDataURL('image/png');
+  // try a direct download first (desktop / some mobile)
+  const a=document.createElement('a');
+  a.href=dataURL; a.download='masterpiece-'+Date.now()+'.png';
+  document.body.appendChild(a); a.click(); a.remove();
+  // also show the picture so iPhone users can press-and-hold to save
+  document.getElementById('saveImg').src=dataURL;
+  document.getElementById('saveSheet').style.display='flex';
+}
+document.getElementById('saveClose').addEventListener('click', ()=>{
+  document.getElementById('saveSheet').style.display='none';
+});
+
+/* ============ fx ============ */
+function flash(){ const f=document.getElementById('flash');
+  f.style.transition='none'; f.style.opacity='.85';
+  requestAnimationFrame(()=>{ f.style.transition='opacity .4s'; f.style.opacity='0'; });
+}
+let toastT;
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg;
+  t.style.opacity='1'; clearTimeout(toastT); toastT=setTimeout(()=>t.style.opacity='0',1800); }
+
+/* ============ block page gestures ============ */
+document.addEventListener('gesturestart', e=>e.preventDefault());
+document.addEventListener('touchmove', e=>{ if(e.touches.length>1) e.preventDefault(); }, {passive:false});
+document.addEventListener('dblclick', e=>e.preventDefault(), {passive:false});
+
+/* ============ init ============ */
+function init(){ sizeCanvases(); buildPalette(); newBlank(); startSheet.classList.add('open'); }
+window.addEventListener('load', init);
+// handle rotate/resize: re-fit while keeping artwork
+let rt;
+window.addEventListener('resize', ()=>{
+  clearTimeout(rt);
+  rt=setTimeout(()=>{
+    const snapC=document.createElement('canvas'); snapC.width=W; snapC.height=H;
+    snapC.getContext('2d').drawImage(colorCanvas,0,0);
+    const snapL=document.createElement('canvas'); snapL.width=W; snapL.height=H;
+    snapL.getContext('2d').drawImage(lineCanvas,0,0);
+    const oldW=W, oldH=H;
+    sizeCanvases();
+    cctx.fillStyle='#fff'; cctx.fillRect(0,0,W,H);
+    cctx.drawImage(snapC,0,0,oldW,oldH,0,0,W,H);
+    lctx.clearRect(0,0,W,H);
+    lctx.drawImage(snapL,0,0,oldW,oldH,0,0,W,H);
+    buildMaskFromLine();
+  },250);
+});
+})();
+</script>
+</body>
+</html>
